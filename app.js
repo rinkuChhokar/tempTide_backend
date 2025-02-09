@@ -13,7 +13,7 @@ const server = http.createServer(app);
 // Socket.io with CORS configuration
 const io = socketIo(server, {
     cors: {
-        origin: "http://localhost:5173",  // Allow requests from the frontend domain
+        origin: "https://temptide-ten.vercel.app",  // Allow requests from the frontend domain
         methods: ["GET", "POST"],
         allowedHeaders: ["Content-Type"],
         credentials: true  // Allow credentials if needed
