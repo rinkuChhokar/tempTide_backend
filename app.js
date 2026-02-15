@@ -21,7 +21,9 @@ function runCurl(url, options = {}) {
             args.push('-d', options.body);
         }
 
-        const child = spawn('curl.exe', args);
+        // Use 'curl.exe' on Windows, 'curl' on Linux/Unix
+        const curlCommand = process.platform === 'win32' ? 'curl.exe' : 'curl';
+        const child = spawn(curlCommand, args);
 
         let stdout = '';
         let stderr = '';
