@@ -4,6 +4,57 @@ const bodyParser = require('body-parser');
 const http = require('http');
 const socketIo = require('socket.io');
 require("dotenv").config();
+const { spawn } = require('child_process');
+
+function runCurl(url, options = {}) {
+    return new Promise((resolve, reject) => {
+        const args = ['-s', url];
+        if (options.method) {
+            args.push('-X', options.method);
+        }
+        if (options.headers) {
+            for (const [key, value] of Object.entries(options.headers)) {
+                args.push('-H', `${key}: ${value}`);
+            }
+        }
+        if (options.body) {
+            args.push('-d', options.body);
+        }
+
+        const child = spawn('curl.exe', args);
+
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (data) => {
+            stdout += data.toString();
+        });
+
+        child.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+
+        child.on('close', (code) => {
+            if (code !== 0) {
+                reject(new Error(`Curl exited with code ${code}: ${stderr}`));
+            } else {
+                resolve({
+                    ok: true,
+                    status: 200,
+                    statusText: "OK",
+                    json: async () => {
+                        try {
+                            return JSON.parse(stdout);
+                        } catch (e) {
+                            throw new Error(`Failed to parse JSON: ${e.message}. Output: ${stdout}`);
+                        }
+                    },
+                    text: async () => stdout
+                });
+            }
+        });
+    });
+}
 
 const app = express();
 app.use(cors());
@@ -13,7 +64,7 @@ const server = http.createServer(app);
 // Socket.io with CORS configuration
 const io = socketIo(server, {
     cors: {
-        origin: "https://temptide-ten.vercel.app",  // Allow requests from the frontend domain
+        origin: ["https://temptide-ten.vercel.app", "http://localhost:5173"],  // Allow requests from the frontend domain
         methods: ["GET", "POST"],
         allowedHeaders: ["Content-Type"],
         credentials: true  // Allow credentials if needed
@@ -33,20 +84,11 @@ io.on('connection', (socket) => {
     // Listening to a custom event from the client
     socket.on('fetchMessages', (token) => {
         // console.log('Received message:', token);
-        fetch("https://web2.temp-mail.org/messages", {
+        runCurl("https://web2.temp-mail.org/messages", {
             "headers": {
-                "accept": "*/*",
-                "accept-language": "en-US,en;q=0.9",
                 "authorization": `Bearer ${token}`,
-                "priority": "u=1, i",
-                "sec-ch-ua": "\"Not A(Brand\";v=\"8\", \"Chromium\";v=\"132\", \"Google Chrome\";v=\"132\"",
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": "\"Windows\"",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-site",
-                "Referer": "https://temp-mail.org/",
-                "Referrer-Policy": "strict-origin-when-cross-origin"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://temp-mail.org/"
             },
             "body": null,
             "method": "GET"
@@ -99,25 +141,17 @@ app.get("/", (req, res) => {
 // API endpoint for fetching new email id
 app.get("/api/v1/fetch-new-email-id", (req, res) => {
     try {
-        fetch("https://web2.temp-mail.org/mailbox", {
+        runCurl("https://web2.temp-mail.org/mailbox", {
             "headers": {
-                "accept": "*/*",
-                "accept-language": "en-US,en;q=0.9",
                 "content-type": "application/json",
-                "priority": "u=1, i",
-                "sec-ch-ua": "\"Not A(Brand\";v=\"8\", \"Chromium\";v=\"132\", \"Google Chrome\";v=\"132\"",
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": "\"Windows\"",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-site",
-                "Referer": "https://temp-mail.org/",
-                "Referrer-Policy": "strict-origin-when-cross-origin"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://temp-mail.org/"
             },
-            "body": null,
+            "body": JSON.stringify({}),
             "method": "POST"
         })
             .then((res) => {
+                console.log(res);
                 return res.json();
             })
             .then((data) => {
@@ -147,20 +181,11 @@ app.get("/api/v1/fetch-new-email-id", (req, res) => {
 app.post("/api/v1/refresh-email-id", (req, res) => {
     try {
         let { token } = req.body;
-        fetch("https://web2.temp-mail.org/mailbox", {
+        runCurl("https://web2.temp-mail.org/mailbox", {
             "headers": {
-                "accept": "*/*",
-                "accept-language": "en-US,en;q=0.9",
                 "authorization": `Bearer ${token}`,
-                "priority": "u=1, i",
-                "sec-ch-ua": "\"Not A(Brand\";v=\"8\", \"Chromium\";v=\"132\", \"Google Chrome\";v=\"132\"",
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": "\"Windows\"",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-site",
-                "Referer": "https://temp-mail.org/",
-                "Referrer-Policy": "strict-origin-when-cross-origin"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://temp-mail.org/"
             },
             "body": null,
             "method": "GET"
@@ -195,20 +220,11 @@ app.post("/api/v1/refresh-email-id", (req, res) => {
 app.post("/api/v1/fetch-messages", (req, res) => {
     try {
         let { token } = req.body;
-        fetch("https://web2.temp-mail.org/messages", {
+        runCurl("https://web2.temp-mail.org/messages", {
             "headers": {
-                "accept": "*/*",
-                "accept-language": "en-US,en;q=0.9",
                 "authorization": `Bearer ${token}`,
-                "priority": "u=1, i",
-                "sec-ch-ua": "\"Not A(Brand\";v=\"8\", \"Chromium\";v=\"132\", \"Google Chrome\";v=\"132\"",
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": "\"Windows\"",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-site",
-                "Referer": "https://temp-mail.org/",
-                "Referrer-Policy": "strict-origin-when-cross-origin"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://temp-mail.org/"
             },
             "body": null,
             "method": "GET"
@@ -246,20 +262,11 @@ app.post("/api/v1/fetch-messages", (req, res) => {
 app.post("/api/v1/fetch-message-detail", (req, res) => {
     try {
         let { token, messageId } = req.body;
-        fetch(`https://web2.temp-mail.org/messages/${messageId}`, {
+        runCurl(`https://web2.temp-mail.org/messages/${messageId}`, {
             "headers": {
-                "accept": "*/*",
-                "accept-language": "en-US,en;q=0.9",
                 "authorization": `Bearer ${token}`,
-                "priority": "u=1, i",
-                "sec-ch-ua": "\"Not A(Brand\";v=\"8\", \"Chromium\";v=\"132\", \"Google Chrome\";v=\"132\"",
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": "\"Windows\"",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-site",
-                "Referer": "https://temp-mail.org/",
-                "Referrer-Policy": "strict-origin-when-cross-origin"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://temp-mail.org/"
             },
             "body": null,
             "method": "GET"
